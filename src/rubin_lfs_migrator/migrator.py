@@ -324,6 +324,7 @@ def get_migrator() -> Migrator:
         lfs_base_url=args.lfs_base_url,
         lfs_base_write_url=args.lfs_base_write_url,
         dry_run=args.dry_run,
+        quiet=args.quiet,
         debug=args.debug,
     )
 
