@@ -1,3 +1,5 @@
-setuptools
-wheel
+coverage[toml]
+mypy
 pre-commit
+pytest
+pytest-cov
