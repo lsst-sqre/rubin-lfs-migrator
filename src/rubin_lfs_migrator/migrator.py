@@ -259,7 +259,7 @@ def _url(str_url: str) -> ParseResult:
     return urlparse(str_url)
 
 
-def get_migrator() -> Migrator:
+def _get_migrator() -> Migrator:
     """
     Parse arguments and return the migrator for that repository.  Exposed for
     testing.
@@ -330,7 +330,7 @@ def get_migrator() -> Migrator:
 
 
 def main() -> None:
-    mgr = get_migrator()
+    mgr = _get_migrator()
     asyncio.run(mgr.execute())
 
 

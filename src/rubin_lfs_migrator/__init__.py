@@ -1,3 +1,3 @@
-from .migrator import Migrator, get_migrator
+from .migrator import Migrator
 
-__all__ = ["Migrator", "get_migrator"]
+__all__ = ["Migrator"]

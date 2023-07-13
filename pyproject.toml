@@ -21,6 +21,9 @@ requires-python = ">=3.11"
 dependencies = []
 dynamic = ["version"]
 
+[project.scripts]
+migrate_lfs = "rubin_lfs_migrator.migrator:main"
+
 [project.urls]
 Source = "https://github.com/lsst-sqre/rubin-lfs-migrator"
 
