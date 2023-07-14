@@ -6,8 +6,8 @@ This is a tool to migrate Git LFS contents from one location to another.
 To use it, `pip install rubin-lfs-migrator` and then run `migrate_lfs`.
 
 If you are using this in a Rubin Observatory context, you will probably
-not need to change anything except the input directory (with the -i
-option).  Hoever, `migrate_lfs -h` will show you the options available:
+not need to change anything except the input directory (with the `-i`
+option).  However, `migrate_lfs -h` will show you the options available:
 
 ```
 usage: migrate_lfs [-h] [-i DIRECTORY] [-b LFS_BASE_URL]
