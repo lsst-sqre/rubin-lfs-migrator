@@ -119,7 +119,7 @@ a push to the old repository.
 Note that collaborators (or you, if you do this from a different copy
 of the repository) will need to manually run:
 
-git config lfs.url https://git-lfs-dev-rw.lsst.cloud/owner/testrepo
+`git config lfs.url https://git-lfs-dev-rw.lsst.cloud/owner/testrepo`
 before pushing.
 """
     ).lstrip()

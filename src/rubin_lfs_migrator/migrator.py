@@ -60,23 +60,27 @@ class Migrator:
         except KeyError:
             raise RuntimeError(f"{self._dir}/.gitattributes not found")
         self._repo = repo
-        # Set owner and name too
-        self._owner = repo.remotes.origin.url.split(".git")[0].split("/")[-2]
-        self._name = repo.remotes.origin.url.split(".git")[0].split("/")[-1]
+        # Ensure it's not cloned via ssh; that won't work.
+        url = repo.remotes.origin.url
+        if not url.startswith("http"):
+            raise RuntimeError("Repository must be cloned via https, not ssh")
+        # Set owner and name from origin
+        self._owner = url.split(".git")[0].split("/")[-2]
+        self._name = url.split(".git")[0].split("/")[-1]
 
     async def execute(self) -> None:
         """execute() is the only public method.  It performs the git
         operations necessary to migrate the Git LFS content (or, if
         dry_run is enabled, just logs the operations).
         """
-        await self._checkout_migration_branch()
         await self._get_lfs_file_list()
         if not self._lfs_files:
             self._logger.warning("No LFS-managed files found")
             return
-        await self._remove_and_readd()
+        await self._checkout_migration_branch()
         await self._update_lfsconfig()
         await self._update_config()
+        await self._remove_and_readd()
         await self._report()
 
     async def _checkout_migration_branch(self) -> None:
@@ -217,8 +221,11 @@ class Migrator:
             different copy of the repository) will need to manually
             run:
             """,
-            (f"git config lfs.url {self._write_url} before pushing."),
+            (f"`git config lfs.url {self._write_url}` before pushing."),
         ]
+        if self._dry_run:
+            paragraphs.insert(0, "***DRY RUN: the following DID NOT HAPPEN***")
+            paragraphs.append("***DRY RUN: the preceding DID NOT HAPPEN***")
         alignedps = [textwrap.dedent(x) for x in paragraphs]
         text = "\n\n".join([textwrap.fill(x).lstrip() for x in alignedps])
         print(text)
@@ -226,7 +233,7 @@ class Migrator:
     async def _update_lfsconfig(self) -> None:
         """Set read URL for LFS objects and disable lock verification."""
         if self._dry_run:
-            self._logger.info("Would set .lfsconfig lfs.url to {read_url}")
+            self._logger.info(f"Would set .lfsconfig lfs.url to {self._url}")
             self._logger.info("Would set .lfsconfig lfs.locksverify to False")
             return
         lfscfgblob = self._repo.head.commit.tree / ".lfsconfig"
@@ -241,7 +248,9 @@ class Migrator:
         """Set URL for pushing in .git/config (which is not under
         version control, hence not commitable)."""
         if self._dry_run:
-            self._logger.info("Would set .git/config lfs.url to {write_url}")
+            self._logger.info(
+                f"Would set .git/config lfs.url to {self._write_url}"
+            )
             return
         cfg = self._repo.config_writer(config_level="repository")
         cfg.set("lfs", "url", self._write_url)
