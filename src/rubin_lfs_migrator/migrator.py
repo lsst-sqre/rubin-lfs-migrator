@@ -52,13 +52,13 @@ class Migrator:
             raise RuntimeError(f"{self._dir} is not a git repository")
         tree = repo.head.commit.tree
         try:
-            _ = tree / ".gitattributes"
-        except KeyError:
-            raise RuntimeError(f"{self._dir}/.gitattributes not found")
-        try:
             _ = tree / ".lfsconfig"
         except KeyError:
             raise RuntimeError(f"{self._dir}/.lfsconfig not found")
+        try:
+            _ = tree / ".gitattributes"
+        except KeyError:
+            raise RuntimeError(f"{self._dir}/.gitattributes not found")
         self._repo = repo
         # Set owner and name too
         self._owner = repo.remotes.origin.url.split(".git")[0].split("/")[-2]
@@ -164,12 +164,13 @@ class Migrator:
             )
             return
         self._logger.debug(f"Removing {num_files} files from index")
-        idx.remove(self._lfs_files, cached=True)
+        str_files = [str(x) for x in self._lfs_files]
+        idx.remove(str_files, cached=True)
         msg = f"Removed {num_files} LFS files from index"
         self._logger.debug("Committing removal change")
         idx.commit(msg)
         self._logger.debug(f"Adding {num_files} files to index")
-        idx.add(self._lfs_files)
+        idx.add(str_files)
         msg = f"Added {num_files} LFS files to index"
         self._logger.debug("Committing re-add change")
         idx.commit(msg)
@@ -234,9 +235,7 @@ class Migrator:
         if self._dry_run:
             self._logger.info("Would set .git/config lfs.url to {write_url}")
             return
-        cfgblob = self._repo.head.commit.tree / ".git" / "config"
-        cfgpath = cfgblob.abspath
-        cfg = GitConfigParser(cfgpath, read_only=False)
+        cfg = self._repo.config_writer(config_level="repository")
         cfg.set("lfs", "url", self._write_url)
         # No commit: see above
 
