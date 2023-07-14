@@ -61,34 +61,40 @@ async def test_execution(
     # Check that it's correct
     assert url == "https://www.example.com/owner/testrepo"
 
-    # Run the migration steps
-    await migrator.execute()
-
-    # Check that we're on "migration" branch now
-    assert repo.active_branch == repo.create_head("migration")
+    # Find LFS-managed files
+    await migrator._get_lfs_file_list()
 
     # Check that we found one LFS-managed file
     assert len(migrator._lfs_files) == 1
     # Check that it's the right one
     assert migrator._lfs_files[0] == Path(directory / "assets" / "foo.txt")
 
-    # Check that we have made three new commits
-    commits = list(repo.iter_commits("migration"))
-    assert len(commits) == 1 + 3
+    # Check that we're on "migration" branch now
+    await migrator._checkout_migration_branch()
+    assert repo.active_branch == repo.create_head("migration")
 
+    # Update LFS config
+    await migrator._update_lfsconfig()
+
+    # Check that we have made a new commit
+    commits = list(repo.iter_commits("migration"))
+    assert len(commits) == 1 + 1
+
+    # Check that LFS config has been updated
     # Read the URL from .lfsconfig
     lfscfgblob = repo.head.commit.tree / ".lfsconfig"
     lfscfgpath = lfscfgblob.abspath
     cfg = GitConfigParser(lfscfgpath)
     url = cfg.get("lfs", "url")
-    # Check that it's been updated
     assert url == "https://git-lfs-dev.lsst.cloud/owner/testrepo"
 
-    # Read the URL from .git/config
-    cfg = repo.config_reader(config_level="repository")
-    url = cfg.get("lfs", "url")
-    # Check that it is now our write URL
-    assert url == "https://git-lfs-dev-rw.lsst.cloud/owner/testrepo"
+    # Skip the remove-push-readd-push step, since we would have to mock
+    # out a git repository and a git LFS server for that to work.
+    #
+    # Maybe do this later, because this is actually the tricky part.
+
+    # Verify output.
+    await migrator._report()
 
     # Read the output
     expected = (
@@ -96,31 +102,22 @@ async def test_execution(
 LFS migration has been performed on the `migration`branch of the
 owner/testrepo repository.
 
-Changes to remove and re-add the Git LFS objects, to update the LFS
-read-only pull URL, and to disable lock verification have been
-committed.
+The LFS read-only pull URL is now https://git-lfs-
+dev.lsst.cloud/owner/testrepo, and 1 files have been uploaded to their
+new home.  Lock verification has also been disabled.
 
-Additionally, `git config` has been run to set the LFS push endpoint
-for read-write access; this is in .git/config in the repository root,
-which is not under version control and therefore is not committed.
+You should immediately PR the "migration" branch to your default
+branch and merge that PR, so that so that no one else pushes to the
+old LFS repository.
 
-Please review the changes relative to the initial state, and if you
-like what you see, prepare to do a `git push`.
+You will need to run `git config lfs.url https://git-lfs-dev-
+rw.lsst.cloud/owner/testrepo` before pushing, and you will need the
+Git LFS push token you used to push to https://git-lfs-dev-
+rw.lsst.cloud/owner/testrepo just now.
 
-In order to do the `git push`, you will need the Git LFS push token
-you earlier acquired from Gafaelfawr.  When prompted, use the name you
-authenticated to Gafaelfawr with as the username, and that token as
-the password.
-
-Probably as soon as you've successfully done the push, you want to PR
-and merge the changes to your default branch, so that no one else does
-a push to the old repository.
-
-Note that collaborators (or you, if you do this from a different copy
-of the repository) will need to manually run:
-
-`git config lfs.url https://git-lfs-dev-rw.lsst.cloud/owner/testrepo`
-before pushing.
+When prompted to authenticate on push, use the name you
+authenticated to Gafaelfawr with as the username, and the
+corresponding token as the password (as you just did).
 """
     ).lstrip()
     captured = capsys.readouterr()

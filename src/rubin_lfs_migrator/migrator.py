@@ -7,7 +7,7 @@ from pathlib import Path
 from urllib.parse import ParseResult, urlparse
 
 from git import GitConfigParser, Repo  # type: ignore [attr-defined]
-from git.exc import InvalidGitRepositoryError
+from git.exc import CommandError, InvalidGitRepositoryError
 
 
 class Migrator:
@@ -79,7 +79,6 @@ class Migrator:
             return
         await self._checkout_migration_branch()
         await self._update_lfsconfig()
-        await self._update_config()
         await self._remove_and_readd()
         await self._report()
 
@@ -162,7 +161,7 @@ class Migrator:
         return files
 
     async def _remove_and_readd(self) -> None:
-        idx = self._repo.index
+        client = self._repo.git
         num_files = len(self._lfs_files)
         if self._dry_run:
             self._logger.info(
@@ -170,17 +169,43 @@ class Migrator:
                 + f"files: {self._lfs_files}"
             )
             return
+        self._logger.debug("Pushing changes to .lfsconfig")
+        client.push()
         self._logger.debug(f"Removing {num_files} files from index")
+        self._logger.debug(f"Setting LFS URL to {self._write_url}")
+        cfg = self._repo.config_writer()
+        cfg.set("lfs", "url", self._write_url)
         str_files = [str(x) for x in self._lfs_files]
-        idx.remove(str_files, cached=True)
+        client.rm("--cached", *str_files)
         msg = f"Removed {num_files} LFS files from index"
         self._logger.debug("Committing removal change")
-        idx.commit(msg)
+        client.commit("-m", msg)
+        self._logger.debug("Pushing removal change")
+        client.push()
         self._logger.debug(f"Adding {num_files} files to index")
-        idx.add(str_files)
+        client.add(*str_files)
         msg = f"Added {num_files} LFS files to index"
         self._logger.debug("Committing re-add change")
-        idx.commit(msg)
+        client.commit("-m", msg)
+        self._logger.debug("Pushing re-add change")
+        # Something either I or giftless is doing wrong is that the first
+        # push actually uploads all the data, but appears to fail with a 403.
+        #
+        # Then the second push does nothing, but succeeds.
+        try:
+            resp = client.push()
+        except CommandError as exc:
+            e_str = str(exc)
+            authz_error = (
+                f"Authorization error: {self._write_url}"
+                + "/objects/storage/verify"
+            )
+            if not e_str.find(authz_error):
+                raise
+            resp = client.push()
+        self._logger.debug(f"LFS files uploaded: {resp}")
+        self._logger.debug(f"Resetting LFS URL to {self._url}")
+        cfg.set("lfs", "url", self._url)
 
     async def _report(self) -> None:
         if self._quiet:
@@ -190,38 +215,25 @@ class Migrator:
                 "LFS migration has been performed on the `migration`"
                 + f"branch of the {self._owner}/{self._name} repository."
             ),
+            (
+                f"The LFS read-only pull URL is now {self._url}, and "
+                + f"{len(self._lfs_files)} files have been uploaded to their "
+                + "new home.  Lock verification has also been disabled."
+            ),
             """
-            Changes to remove and re-add the Git LFS objects, to
-            update the LFS read-only pull URL, and to disable lock
-            verification have been committed.
+            You should immediately PR the "migration" branch to your
+            default branch and merge that PR, so that so that no one else
+            pushes to the old LFS repository.
             """,
-            """
-            Additionally, `git config` has been run to set the LFS
-            push endpoint for read-write access; this is in
-            .git/config in the repository root, which is not under
-            version control and therefore is not committed.
+            (
+                f"You will need to run `git config lfs.url {self._write_url}` "
+                + "before pushing, and you will need the Git LFS push "
+                + f"token you used to push to {self._write_url} just now."
+            ),
+            """When prompted to authenticate on push, use the name you
+            authenticated to Gafaelfawr with as the username, and the
+            corresponding token as the password (as you just did).
             """,
-            """
-            Please review the changes relative to the initial state,
-            and if you like what you see, prepare to do a `git push`.
-            """,
-            """
-            In order to do the `git push`, you will need the Git LFS
-            push token you earlier acquired from Gafaelfawr.  When
-            prompted, use the name you authenticated to Gafaelfawr
-            with as the username, and that token as the password.
-            """,
-            """
-            Probably as soon as you've successfully done the push, you
-            want to PR and merge the changes to your default branch,
-            so that no one else does a push to the old repository.
-            """,
-            """
-            Note that collaborators (or you, if you do this from a
-            different copy of the repository) will need to manually
-            run:
-            """,
-            (f"`git config lfs.url {self._write_url}` before pushing."),
         ]
         if self._dry_run:
             paragraphs.insert(0, "***DRY RUN: the following DID NOT HAPPEN***")
@@ -241,8 +253,11 @@ class Migrator:
         cfg = GitConfigParser(lfscfgpath, read_only=False)
         cfg.set("lfs", "url", self._url)
         cfg.set("lfs", "locksverify", "false")
-        idx = self._repo.index
-        idx.commit(f"Set lfs.url to {self._url} and disable lock verification")
+        client = self._repo.git
+        client.add(lfscfgpath)
+        client.commit(
+            "-m", f"Set lfs.url to {self._url} and disable lock verification"
+        )
 
     async def _update_config(self) -> None:
         """Set URL for pushing in .git/config (which is not under
