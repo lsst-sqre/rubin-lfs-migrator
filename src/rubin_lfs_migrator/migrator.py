@@ -82,6 +82,9 @@ class Migrator:
     async def _checkout_migration_branch(self) -> None:
         """We will perform changes on the "migration" branch.  If that is
         already the current branch, complain vociferously and exit."""
+        if self._dry_run:
+            self._logger.info("Would check out 'migration' branch.")
+            return
         repo = self._repo
         mig_br = repo.create_head("migration")
         if repo.active_branch == mig_br:
@@ -178,42 +181,47 @@ class Migrator:
     async def _report(self) -> None:
         if self._quiet:
             return
-        text = (
+        paragraphs = [
+            (
+                "LFS migration has been performed on the `migration`"
+                + f"branch of the {self._owner}/{self._name} repository."
+            ),
             """
-            LFS migration has been performed on the `migration`
-            branch of the {self._owner}/{self._name} repository.
             Changes to remove and re-add the Git LFS objects, to
             update the LFS read-only pull URL, and to disable lock
             verification have been committed.
-
+            """,
+            """
             Additionally, `git config` has been run to set the LFS
             push endpoint for read-write access; this is in
             .git/config in the repository root, which is not under
             version control and therefore is not committed.
-
+            """,
+            """
             Please review the changes relative to the initial state,
             and if you like what you see, prepare to do a `git push`.
-
-            You will have to install Git LFS locally: see
+            """,
             """
-            + "https://docs.github.com/en/repositories/working-with-files/"
-            + "managing-large-files/installing-git-large-file-storage"
-            + """
             In order to do the `git push`, you will need the Git LFS
             push token you earlier acquired from Gafaelfawr.  When
             prompted, use the name you authenticated to Gafaelfawr
             with as the username, and that token as the password.
-
+            """,
+            """
             Probably as soon as you've successfully done the push, you
             want to PR and merge the changes to your default branch,
             so that no one else does a push to the old repository.
-
+            """,
+            """
             Note that collaborators (or you, if you do this from a
             different copy of the repository) will need to manually
-            run `git config lfs.url {self._write_url}` before pushing.
-            """
-        )
-        print(textwrap.fill(f"{text}"))
+            run:
+            """,
+            (f"git config lfs.url {self._write_url} before pushing."),
+        ]
+        alignedps = [textwrap.dedent(x) for x in paragraphs]
+        text = "\n\n".join([textwrap.fill(x).lstrip() for x in alignedps])
+        print(text)
 
     async def _update_lfsconfig(self) -> None:
         """Set read URL for LFS objects and disable lock verification."""
