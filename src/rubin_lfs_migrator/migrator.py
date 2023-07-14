@@ -25,7 +25,7 @@ class Migrator:
         quiet: bool,
         debug: bool,
     ) -> None:
-        self._dir = Path(directory)
+        self._dir = Path(directory).resolve()
         self._dry_run = dry_run
         self._quiet = quiet
         self._debug = debug
@@ -103,9 +103,7 @@ class Migrator:
         """Assemble the list of LFS-managed files by interpreting the
         .gitattributes file in the repo root."""
         files: list[Path] = []
-        attrblob = self._repo.head.commit.tree / ".gitattributes"
-        attrpath = attrblob.abspath
-        with open(attrpath, "r") as f:
+        with open(".gitattributes", "r") as f:
             for line in f:
                 fields = line.strip().split()
                 if not await self._is_lfs_attribute(fields):
@@ -177,8 +175,6 @@ class Migrator:
         if orig_dir != self._dir:
             self._logger.debug(f"Changing directory to {str(self._dir)}")
             os.chdir(self._dir)
-        self._logger.debug("Pushing changes to .lfsconfig")
-        client.push("--set-upstream", "origin", "migration")
         self._logger.debug(f"Removing {num_files} files from index")
         self._logger.debug(f"Setting LFS URL to {self._write_url}")
         cfg = self._repo.config_writer()
@@ -189,7 +185,7 @@ class Migrator:
         self._logger.debug("Committing removal change")
         client.commit("-m", msg)
         self._logger.debug("Pushing removal change")
-        client.push()
+        client.push("--set-upstream", "origin", "migration")
         self._logger.debug(f"Adding {num_files} files to index")
         client.add(*str_files)
         msg = f"Added {num_files} LFS files to index"
