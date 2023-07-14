@@ -239,6 +239,10 @@ class Migrator:
                 + f"token you used to push to {self._write_url} just now, "
                 + "and its corresponding name."
             ),
+            """
+            Since this becomes quite painful to do repeatedly, use of a
+            credential manager is highly encouraged.
+            """,
         ]
         if self._dry_run:
             paragraphs.insert(0, "***DRY RUN: the following DID NOT HAPPEN***")

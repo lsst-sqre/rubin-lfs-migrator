@@ -117,6 +117,9 @@ You will need to run `git config lfs.url https://git-lfs-dev-
 rw.lsst.cloud/owner/testrepo` before pushing, and you will need the
 Git LFS push token you used to push to https://git-lfs-dev-
 rw.lsst.cloud/owner/testrepo just now, and its corresponding name.
+
+Since this becomes quite painful to do repeatedly, use of a
+credential manager is highly encouraged.
 """
         ).lstrip()
         captured = capsys.readouterr()
