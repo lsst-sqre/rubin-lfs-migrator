@@ -236,12 +236,9 @@ class Migrator:
             (
                 f"You will need to run `git config lfs.url {self._write_url}` "
                 + "before pushing, and you will need the Git LFS push "
-                + f"token you used to push to {self._write_url} just now."
+                + f"token you used to push to {self._write_url} just now, "
+                + "and its corresponding name."
             ),
-            """When prompted to authenticate on push, use the name you
-            authenticated to Gafaelfawr with as the username, and the
-            corresponding token as the password (as you just did).
-            """,
         ]
         if self._dry_run:
             paragraphs.insert(0, "***DRY RUN: the following DID NOT HAPPEN***")
