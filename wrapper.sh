@@ -1,8 +1,13 @@
 #!/bin/bash
 #
 # Install this as "migrate_lfs" somewhere on your $PATH.  You will need the
-# pip and venv modules for your python3 in order to use it.  This will
-# create a virtualenv for rubin_lfs_migrator and source it before use,
+# pip and venv modules for your python3 in order to use it.
+#
+# If you run it the first time under sudo, this script will create a
+# virtualenv for rubin_lfs_migrator.
+
+# Thereafter, you will not need privilege, and running "migrate_lfs" will
+# activate that virtualenv and source it before running the migrator,
 # which will keep your system python environment clean.
 
 # If you want your virtualenv
