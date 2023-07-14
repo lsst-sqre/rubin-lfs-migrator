@@ -170,7 +170,7 @@ class Migrator:
             )
             return
         self._logger.debug("Pushing changes to .lfsconfig")
-        client.push()
+        client.push("--set-upstream", "origin", "migration")
         self._logger.debug(f"Removing {num_files} files from index")
         self._logger.debug(f"Setting LFS URL to {self._write_url}")
         cfg = self._repo.config_writer()
