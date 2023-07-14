@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import contextlib
 import logging
 import os
 import textwrap
@@ -39,6 +40,7 @@ class Migrator:
         if self._debug:
             self._logger.setLevel("DEBUG")
             self._logger.debug("Debugging enabled for Migrator")
+
         self._check_repo()
         self._url = f"{lfs_base_url}/{self._owner}/{self._name}"
         self._write_url = f"{lfs_base_write_url}/{self._owner}/{self._name}"
@@ -67,20 +69,22 @@ class Migrator:
         # Set owner and name from origin
         self._owner = url.split(".git")[0].split("/")[-2]
         self._name = url.split(".git")[0].split("/")[-1]
+        self._orig_url = url
 
     async def execute(self) -> None:
         """execute() is the only public method.  It performs the git
         operations necessary to migrate the Git LFS content (or, if
         dry_run is enabled, just logs the operations).
         """
-        await self._get_lfs_file_list()
-        if not self._lfs_files:
-            self._logger.warning("No LFS-managed files found")
-            return
-        await self._checkout_migration_branch()
-        await self._update_lfsconfig()
-        await self._remove_and_readd()
-        await self._report()
+        with contextlib.chdir(self._dir):
+            await self._get_lfs_file_list()
+            if not self._lfs_files:
+                self._logger.warning("No LFS-managed files found")
+                return
+            await self._checkout_migration_branch()
+            await self._update_lfsconfig()
+            await self._remove_and_readd()
+            await self._report()
 
     async def _checkout_migration_branch(self) -> None:
         """We will perform changes on the "migration" branch.  If that is
@@ -169,6 +173,10 @@ class Migrator:
                 + f"files: {self._lfs_files}"
             )
             return
+        orig_dir = Path(os.getcwd())
+        if orig_dir != self._dir:
+            self._logger.debug(f"Changing directory to {str(self._dir)}")
+            os.chdir(self._dir)
         self._logger.debug("Pushing changes to .lfsconfig")
         client.push("--set-upstream", "origin", "migration")
         self._logger.debug(f"Removing {num_files} files from index")
@@ -206,22 +214,26 @@ class Migrator:
         self._logger.debug(f"LFS files uploaded: {resp}")
         self._logger.debug(f"Resetting LFS URL to {self._url}")
         cfg.set("lfs", "url", self._url)
+        if orig_dir != self._dir:
+            self._logger.debug(f"Changing directory to {str(self._dir)}")
+            os.chdir(self._dir)
 
     async def _report(self) -> None:
         if self._quiet:
             return
         paragraphs = [
             (
-                "LFS migration has been performed on the `migration`"
+                "LFS migration has been performed on the `migration` "
                 + f"branch of the {self._owner}/{self._name} repository."
             ),
             (
-                f"The LFS read-only pull URL is now {self._url}, and "
+                f"The LFS read-only pull URL is now {self._url}, "
+                + f"changed from {self._orig_url}, and "
                 + f"{len(self._lfs_files)} files have been uploaded to their "
-                + "new home.  Lock verification has also been disabled."
+                + "new location.  Lock verification has also been disabled."
             ),
             """
-            You should immediately PR the "migration" branch to your
+            You should immediately PR the `migration` branch to your
             default branch and merge that PR, so that so that no one else
             pushes to the old LFS repository.
             """,
