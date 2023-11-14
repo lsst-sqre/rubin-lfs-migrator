@@ -1,0 +1,45 @@
+# These are repos that need migrating to git-lfs.lsst.cloud
+lsst-dm/dmtn-085
+lsst-dm/alert_stream
+lsst-dm/ap_verify_dataset_template
+lsst-dm/dmtn-158
+lsst-dm/dmtn-232
+lsst-dm/legacy-ap_pip_testdata
+lsst-dm/legacy-ap_verify_hits2015
+lsst-dm/legacy-ci_ctio0m9
+lsst-dm/legacy-ci_hsc_gen2
+lsst-dm/legacy-testdata_isrdata
+lsst-dm/legacy-testdata_multifit
+lsst-dm/legacy-testdata_sst
+lsst-dm/legacy-validation_data_decam
+lsst-dm/legacy-validation_data_hsc
+lsst-dm/lsst_dm_ssp
+lsst-dm/milestones
+lsst-dm/phosim_psf_tests
+lsst-dm/qserv-ingest
+lsst-dm/rbClassifier_data
+lsst-dm/testdata_image_cutouts
+lsst-sitcom/sitcomtn-052
+lsst-ts/ts_tma
+lsst/LDM-294
+lsst/LDM-503
+lsst/LDM-564
+lsst/afwdata
+lsst/ap_verify_ci_cosmos_pdr2
+lsst/ap_verify_ci_dc2
+lsst/ap_verify_ci_hits2015
+lsst/ap_verify_testdata
+lsst/ci_hsc
+lsst/rc2_subset
+lsst/testdata_cfht
+lsst/testdata_ci_hsc
+lsst/testdata_ci_imsim
+lsst/testdata_deblender
+lsst/testdata_decam
+lsst/testdata_jointcal
+lsst/testdata_latiss_cpp
+lsst/testdata_lsst
+lsst/testdata_subaru
+lsst/validation_data_cfht
+# lsst-sims/legacy_sims_skybrightness_pre
+# lsst-sims/sims_skybrightness_fits

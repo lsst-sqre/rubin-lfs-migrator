@@ -1,30 +1,40 @@
 import contextlib
+import tempfile
 from pathlib import Path
 
 import pytest
-from git import GitConfigParser, Repo  # type: ignore [attr-defined]
+from git import GitConfigParser, Repo
 
 from rubin_lfs_migrator import Migrator
 
 
-def test_not_gitlfs() -> None:
-    """This repo isn't an LFS-enabled repository."""
-    with pytest.raises(RuntimeError) as exc:
-        _ = Migrator(
-            directory=str(Path(__file__).parent.parent),
-            lfs_base_url="https://git-lfs-dev.lsst.cloud",
-            lfs_base_write_url="https://git-lfs-dev-rw.lsst.cloud",
-            dry_run=True,
-            quiet=False,
-            debug=True,
-        )
-        assert str(exc).endswith("/.lfsconfig not found")
+def test_not_git() -> None:
+    """This directory isn't a git repository."""
+    with tempfile.TemporaryDirectory() as d:
+        with pytest.raises(RuntimeError) as exc:
+            _ = Migrator(
+                owner="owner",
+                repository="badrepo",
+                directory=d,
+                migration_branch="lfs-migration",
+                original_lfs_url="https://git-lfs.lsst.codes",
+                lfs_base_url="https://git-lfs-dev.lsst.cloud",
+                lfs_base_write_url="https://git-lfs-dev-rw.lsst.cloud",
+                dry_run=True,
+                quiet=False,
+                debug=True,
+            )
+            assert str(exc).endswith(" must contain a cloned git repository")
 
 
 def test_object(directory: Path) -> None:
     """Does the migrator get created?"""
     mgr = Migrator(
+        owner="owner",
+        repository="testrepo",
         directory=str(directory),
+        migration_branch="lfs-migration",
+        original_lfs_url="https://git-lfs.lsst.codes",
         lfs_base_url="https://git-lfs-dev.lsst.cloud",
         lfs_base_write_url="https://git-lfs-dev-rw.lsst.cloud",
         dry_run=True,
@@ -71,15 +81,15 @@ async def test_execution(
         # Check that it's the right one
         assert migrator._lfs_files[0] == Path(directory / "assets" / "foo.txt")
 
-        # Check that we're on "migration" branch now
+        # Check that we're on "lfs-migration" branch now
         await migrator._checkout_migration_branch()
-        assert repo.active_branch == repo.create_head("migration")
+        assert repo.active_branch == repo.create_head("lfs-migration")
 
         # Update LFS config
         await migrator._update_lfsconfig()
 
         # Check that we have made a new commit
-        commits = list(repo.iter_commits("migration"))
+        commits = list(repo.iter_commits("lfs-migration"))
         assert len(commits) == 1 + 1
 
         # Check that LFS config has been updated
@@ -101,16 +111,16 @@ async def test_execution(
         # Read the output
         expected = (
             """
-LFS migration has been performed on the `migration` branch of the
+LFS migration has been performed on the `lfs-migration` branch of the
 owner/testrepo repository.
 
 The LFS read-only pull URL is now https://git-lfs-
-dev.lsst.cloud/owner/testrepo, changed from
-https://example.com/owner/testrepo, and 1 files have been uploaded to
-their new location.  Lock verification has also been disabled.
+dev.lsst.cloud/owner/testrepo, changed from https://git-
+lfs.lsst.codes, and 1 files have been uploaded to their new location.
+Lock verification has also been disabled.
 
-You should immediately PR the `migration` branch to your default
-branch and merge that PR, so that so that no one else pushes to the
+You should immediately PR the `lfs-migration` branch to your default
+branch and merge that PR, so that so that no one uses the now-obsolete
 old LFS repository.
 
 You will need to run `git config lfs.url https://git-lfs-dev-
