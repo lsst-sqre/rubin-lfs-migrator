@@ -109,12 +109,16 @@ class Migrator:
         """Assemble the list of LFS-managed files by interpreting the
         .gitattributes file in the repo root."""
         files: list[Path] = []
-        with open(".gitattributes", "r") as f:
-            for line in f:
-                fields = line.strip().split()
-                if not await self._is_lfs_attribute(fields):
-                    continue
-                files.extend(await self._find_lfs_files(fields[0]))
+        try:
+            with open(".gitattributes", "r") as f:
+                for line in f:
+                    fields = line.strip().split()
+                    if not await self._is_lfs_attribute(fields):
+                        continue
+                    files.extend(await self._find_lfs_files(fields[0]))
+        except FileNotFoundError:
+            # This may be a repo with only workflow Git LFS references.
+            pass
         self._lfs_files = files
 
     async def _is_lfs_attribute(self, fields: list[str]) -> bool:
