@@ -24,9 +24,9 @@ class Migrator:
         directory: str,
         owner: str,
         repository: str,
+        original_lfs_url: str,
         lfs_base_url: str,
         lfs_base_write_url: str,
-        original_lfs_url: str,
         migration_branch: str,
         dry_run: bool,
         quiet: bool,
@@ -53,6 +53,8 @@ class Migrator:
         ch.setFormatter(formatter)
         self._logger.addHandler(ch)
         self._logger.setLevel("INFO")
+        if self._quiet:
+            self._logger.setLevel("CRITICAL")
         if self._debug:
             self._logger.setLevel("DEBUG")
             self._logger.debug("Debugging enabled for Migrator")
@@ -195,7 +197,7 @@ class Migrator:
         self._logger.debug("Committing re-add change")
         client.commit("-m", msg)
         self._logger.debug("Pushing re-add change")
-        resp = client.push()
+        resp = client.push("--set-upstream", "origin", self._migration_branch)
         self._logger.debug(f"LFS files uploaded: {resp}")
         self._logger.debug(f"Resetting LFS URL to {self._url}")
         cfg.set("lfs", "url", self._url)
