@@ -53,10 +53,9 @@ class Looper:
             self._logger.debug("Debugging enabled for Looper")
 
     async def loop(self) -> None:
-        if self._file == "-":
-            inputs = ()
-        else:
-            inputs = self._file
+        inputs: tuple[str, ...] | None = None
+        if self._file != "-":
+            inputs = tuple([self._file])
         with fileinput.input(inputs) as f:
             for ln in f:
                 # Look for comments and ignore anything after '#'

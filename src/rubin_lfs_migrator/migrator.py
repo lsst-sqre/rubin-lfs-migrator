@@ -34,9 +34,10 @@ class Migrator:
     ) -> None:
         self._dir = Path(directory).resolve()
         if not Path(self._dir / ".git").is_dir():
-            raise RuntimeError(
-                f"{directory} must contain a cloned git repository"
-            )
+            if not dry_run:
+                raise RuntimeError(
+                    f"{directory} must contain a cloned git repository"
+                )
         self._repo = Repo(self._dir)
         self._owner = owner
         self._name = repository
@@ -164,16 +165,17 @@ class Migrator:
         if not match.startswith("/") and not match.startswith("**/"):
             match = "**/" + match
         files = list(self._dir.glob(match))
-        self._logger.debug(f"{match} -> {files}")
+        self._logger.debug(f"{match} -> {[ str(x) for x in files]}")
         return files
 
     async def _remove_and_readd(self) -> None:
         client = self._repo.git
         num_files = len(self._lfs_files)
+        str_files = [str(x) for x in self._lfs_files]
         if self._dry_run:
             self._logger.info(
                 f"Would remove/readd the following {num_files} "
-                + f"files: {self._lfs_files}"
+                + f"files: {str_files}"
             )
             return
         orig_dir = Path(os.getcwd())
@@ -184,7 +186,6 @@ class Migrator:
         self._logger.debug(f"Setting LFS URL to {self._write_url}")
         cfg = self._repo.config_writer()
         cfg.set("lfs", "url", self._write_url)
-        str_files = [str(x) for x in self._lfs_files]
         client.rm("--cached", *str_files)
         msg = f"Removed {num_files} LFS files from index"
         self._logger.debug("Committing removal change")
@@ -229,7 +230,7 @@ class Migrator:
             paragraphs += [
                 (
                     "The following GitHub workflow files have been updated: "
-                    + f"{', '.join([f.name for f in self._wf_files])}."
+                    + f"{', '.join([str(f) for f in self._wf_files])}."
                 )
             ]
         paragraphs += [
@@ -277,18 +278,6 @@ class Migrator:
             "-m", f"Set lfs.url to {self._url} and disable lock verification"
         )
 
-    async def _update_config(self) -> None:
-        """Set URL for pushing in .git/config (which is not under
-        version control, hence not commitable)."""
-        if self._dry_run:
-            self._logger.info(
-                f"Would set .git/config lfs.url to {self._write_url}"
-            )
-            return
-        cfg = self._repo.config_writer(config_level="repository")
-        cfg.set("lfs", "url", self._write_url)
-        # No commit: see above
-
     async def _get_wf_files(self) -> None:
         w_dir = Path(self._dir / ".github" / " workflows")
         candidates: list[Path] = []
@@ -315,6 +304,14 @@ class Migrator:
                 contents = f.read()
             with open(fn, "w") as f:
                 f.write(contents.replace(self._original_lfs_url, self._url))
+        await self._push_workflow_files()
+
+    async def _push_workflow_files(self) -> None:
+        client = self._repo.git
+        self._logger.debug("Committing workflow file changes")
+        client.commit("-m", "Updated workflow files")
+        self._logger.debug("Pushing workflow file changes")
+        client.push("--set-upstream", "origin", self._migration_branch)
 
 
 def _get_migrator() -> Migrator:

@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 from git import GitConfigParser, Repo
+from git.exc import InvalidGitRepositoryError
 
 from rubin_lfs_migrator import Migrator
 
@@ -11,7 +12,7 @@ from rubin_lfs_migrator import Migrator
 def test_not_git() -> None:
     """This directory isn't a git repository."""
     with tempfile.TemporaryDirectory() as d:
-        with pytest.raises(RuntimeError) as exc:
+        with pytest.raises(InvalidGitRepositoryError) as exc:
             _ = Migrator(
                 owner="owner",
                 repository="badrepo",
