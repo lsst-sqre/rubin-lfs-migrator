@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import asyncio
+import contextlib
 import fileinput
 import logging
 import os
@@ -9,6 +10,7 @@ from urllib.parse import ParseResult
 
 from git import Repo
 
+from .external import check_exe, run
 from .migrator import Migrator
 from .parser import parse
 from .util import str_bool, url
@@ -51,6 +53,7 @@ class Looper:
         if self._debug:
             self._logger.setLevel("DEBUG")
             self._logger.debug("Debugging enabled for Looper")
+        self._has_gh = check_exe("gh")
 
     async def loop(self) -> None:
         inputs: tuple[str, ...] | None = None
@@ -93,8 +96,11 @@ class Looper:
             quiet=self._quiet,
             debug=self._debug,
         )
-        self._logger.debug(f"Performing migration for {repo}")
+        self._logger.debug(f"Performing migration for {repo.geturl()}")
         await migrator.execute()
+        if self._has_gh:
+            self._logger.debug(f"Creating PR for {repo.geturl()}")
+            await self._create_pr(repo, target)
         if self._cleanup:
             await self._cleanup_target(target)
 
@@ -125,6 +131,26 @@ class Looper:
         # Explode if target is already there
         Path.mkdir(target)
         return target
+
+    async def _create_pr(self, repo: ParseResult, target: Path) -> None:
+        with contextlib.chdir(target):
+            url = repo.geturl()
+            self._logger.debug("Creating PR for LFS migration changes.")
+            cmd = ["gh", "repo", "set-default", url]
+            result = run(cmd, logger=self._logger, timeout=60)
+            if result.rc != 0:
+                raise RuntimeError(
+                    f"Repo default setting failed with rc={result.rc}: "
+                    + f"{result.stderr}"
+                )
+            cmd = ["gh", "pr", "create", "-t", "Git LFS migration", "-b", ""]
+            result = run(cmd, logger=self._logger, timeout=60)
+            if result.rc != 0:
+                raise RuntimeError(
+                    f"PR creation failed, rc={result.rc}: {result.stderr}"
+                )
+            ll = result.stdout.split("\n")
+            self._logger.info(f"PR for {url} succeeded: {ll[-1]}.")
 
     async def _cleanup_target(self, target: Path) -> None:
         if self._dry_run:

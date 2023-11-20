@@ -283,15 +283,19 @@ class Migrator:
         )
 
     async def _get_wf_files(self) -> None:
-        w_dir = Path(self._dir / ".github" / " workflows")
+        w_dir = Path(self._dir / ".github" / "workflows")
         candidates: list[Path] = []
         if not w_dir.is_dir():
             return
         for suf in ("yaml", "yml"):
             candidates.extend(w_dir.glob(f"*.{suf}"))
         for c in candidates:
+            self._logger.debug(f"Considering candidate workflow file {str(c)}")
             with open(c, "r") as f:
                 contents = f.read()  # These files are all small.
+            self._logger.debug(
+                f"Looking for string '{self._original_lfs_url}'"
+            )
             if contents.find(self._original_lfs_url) == -1:
                 continue
             self._wf_files.append(c)
@@ -313,6 +317,7 @@ class Migrator:
     async def _push_workflow_files(self) -> None:
         client = self._repo.git
         self._logger.debug("Committing workflow file changes")
+        client.add(self._wf_files)
         client.commit("-m", "Updated workflow files")
         self._logger.debug("Pushing workflow file changes")
         client.push("--set-upstream", "origin", self._migration_branch)
