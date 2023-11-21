@@ -4,6 +4,7 @@ import contextlib
 import fileinput
 import logging
 import os
+import textwrap
 from pathlib import Path
 from shutil import rmtree
 from urllib.parse import ParseResult
@@ -54,6 +55,7 @@ class Looper:
             self._logger.setLevel("DEBUG")
             self._logger.debug("Debugging enabled for Looper")
         self._has_gh = check_exe("gh")
+        self._paragraphs: list[str] = []
 
     async def loop(self) -> None:
         inputs: tuple[str, ...] | None = None
@@ -81,6 +83,7 @@ class Looper:
                     )
                     continue
                 await self._migrate_repo(repo_url)
+        await self._report()
 
     async def _migrate_repo(self, repo: ParseResult) -> None:
         target, owner, repo_name = await self._download_repo(repo)
@@ -98,11 +101,16 @@ class Looper:
         )
         self._logger.debug(f"Performing migration for {repo.geturl()}")
         await migrator.execute()
+        m_rpt = f"Migration complete for {repo.geturl()}"
         if self._has_gh:
             self._logger.debug(f"Creating PR for {repo.geturl()}")
-            await self._create_pr(repo, target)
+            pr_rpt = await self._create_pr(repo, target)
+            m_rpt += f"; PR available at {pr_rpt}"
         if self._cleanup:
             await self._cleanup_target(target)
+            m_rpt += f"; cleaned up {str(target)}"
+        m_rpt += "."
+        self._paragraphs.append(m_rpt)
 
     async def _download_repo(self, repo: ParseResult) -> tuple[Path, str, str]:
         path_parts = repo.path.split("/")
@@ -132,7 +140,7 @@ class Looper:
         Path.mkdir(target)
         return target
 
-    async def _create_pr(self, repo: ParseResult, target: Path) -> None:
+    async def _create_pr(self, repo: ParseResult, target: Path) -> str:
         with contextlib.chdir(target):
             url = repo.geturl()
             self._logger.debug("Creating PR for LFS migration changes.")
@@ -149,8 +157,12 @@ class Looper:
                 raise RuntimeError(
                     f"PR creation failed, rc={result.rc}: {result.stderr}"
                 )
-            ll = result.stdout.split("\n")
-            self._logger.info(f"PR for {url} succeeded: {ll[-1]}.")
+            rlines = [
+                y for y in [x.strip() for x in result.stdout.split("\n")] if y
+            ]
+            lastline = rlines[-1]
+            self._logger.info(f"PR for {url} succeeded: {lastline}.")
+            return lastline
 
     async def _cleanup_target(self, target: Path) -> None:
         if self._dry_run:
@@ -158,6 +170,11 @@ class Looper:
         else:
             self._logger.debug(f"Removing '{target}'")
             rmtree(target)
+
+    async def _report(self) -> None:
+        alignedps = [textwrap.dedent(x) for x in self._paragraphs]
+        text = "\n\n".join([textwrap.fill(x).lstrip() for x in alignedps])
+        print(text)
 
 
 def main() -> None:
