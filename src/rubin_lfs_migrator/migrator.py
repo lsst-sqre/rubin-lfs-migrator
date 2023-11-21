@@ -206,6 +206,7 @@ class Migrator:
         self._logger.debug(f"LFS files uploaded: {resp}")
         self._logger.debug(f"Resetting LFS URL to {self._url}")
         cfg.set("lfs", "url", self._url)
+        cfg.release()
         if orig_dir != self._dir:
             self._logger.debug(f"Changing directory to {str(self._dir)}")
             os.chdir(self._dir)
@@ -276,6 +277,7 @@ class Migrator:
         cfg = GitConfigParser(lfscfgpath, read_only=False)
         cfg.set("lfs", "url", self._url)
         cfg.set("lfs", "locksverify", "false")
+        cfg.release()
         client = self._repo.git
         client.add(lfscfgpath)
         client.commit(
