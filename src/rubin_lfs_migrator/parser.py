@@ -22,11 +22,11 @@ def parse(description: str) -> argparse.ArgumentParser:
         "-b",
         "--lfs-base-url",
         default=os.environ.get(
-            "LFSMIGRATOR_BASE_URL", "https://git-lfs-dev.lsst.cloud"
+            "LFSMIGRATOR_BASE_URL", "https://git-lfs.lsst.cloud"
         ),
         help=(
             "base URL of new Git LFS implementation "
-            + "[env: LFSMIGRATOR_BASE_URL, 'https://git-lfs-dev.lsst.cloud']"
+            + "[env: LFSMIGRATOR_BASE_URL, 'https://git-lfs.lsst.cloud']"
         ),
     )
     parser.add_argument(
@@ -34,12 +34,12 @@ def parse(description: str) -> argparse.ArgumentParser:
         "--lfs-base-write-url",
         default=os.environ.get(
             "LFSMIGRATOR_BASE_WRITE_URL",
-            "https://git-lfs-dev-rw.lsst.cloud",
+            "https://git-lfs-rw.lsst.cloud",
         ),
         help=(
             "base URL of write endpoint of new Git LFS implementation "
             + "[env: LFSMIGRATOR_BASE_WRITE_URL, "
-            + "'https://git-lfs-dev-rw.lsst.cloud']"
+            + "'https://git-lfs-rw.lsst.cloud']"
         ),
     )
     parser.add_argument(
