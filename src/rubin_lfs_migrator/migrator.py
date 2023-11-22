@@ -204,8 +204,6 @@ class Migrator:
         match = "**/" + match
         files = list(pdir.glob(match))
         self._logger.debug(f"{match} -> {[ str(x) for x in files]}")
-        with open("/tmp/fart.txt", "w") as f:
-            f.write(f"{pdir} / {files}")
         return files
 
     async def _get_excluded_file_list(self) -> list[Path]:

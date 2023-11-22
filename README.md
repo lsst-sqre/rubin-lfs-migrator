@@ -52,8 +52,8 @@ options:
 ```
 
 A more useful tool may be `lfs_looper`, which takes as its input a list
-of repositories on GitHub (in the form `owner/repo`), and migrates each
-of those in turn:
+of repositories on GitHub (in the form `https://github.comowner/repo`),
+and migrates each of those in turn:
 
 ```
 usage: lfs_looper [-h] [-m MIGRATION_BRANCH] [-s SOURCE_BRANCH]
