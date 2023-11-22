@@ -19,6 +19,15 @@ def parse(description: str) -> argparse.ArgumentParser:
         ),
     ),
     parser.add_argument(
+        "-s",
+        "--source-branch",
+        default=os.environ.get("LFSMIGRATOR_SOURCE_BRANCH", None),
+        help=(
+            "source git branch [env: LFSMIGRATOR_SOURCE_BRANCH, "
+            + " <repo default branch>]"
+        ),
+    ),
+    parser.add_argument(
         "-b",
         "--lfs-base-url",
         default=os.environ.get(

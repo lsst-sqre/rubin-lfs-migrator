@@ -28,6 +28,7 @@ class Migrator:
         lfs_base_url: str,
         lfs_base_write_url: str,
         migration_branch: str,
+        source_branch: str | None,
         dry_run: bool,
         quiet: bool,
         debug: bool,
@@ -43,6 +44,7 @@ class Migrator:
         self._name = repository
         self._original_lfs_url = original_lfs_url
         self._migration_branch = migration_branch
+        self._source_branch = source_branch
         self._dry_run = dry_run
         self._quiet = quiet
         self._debug = debug
@@ -66,27 +68,47 @@ class Migrator:
         self._lfs_files: list[Path] = []
         self._wf_files: list[Path] = []
 
+        self._gitattributes: Path | None = None
+        self._lfsconfig: Path | None = None
+
     async def execute(self) -> None:
         """execute() is the only public method.  It performs the git
         operations necessary to migrate the Git LFS content (or, if
         dry_run is enabled, just logs the operations).
         """
         with contextlib.chdir(self._dir):
-            await self._get_lfs_file_list()
+            await self._locate_gitattributes()
+            await self._locate_lfsconfig()
+            if self._lfsconfig is not None:
+                await self._get_lfs_file_list()
             await self._get_wf_files()
-            if not self._lfs_files and not self._wf_files:
+            if self._lfsconfig is None and not self._wf_files:
                 self._logger.warning(
-                    "Neither LFS-managed files nor workflows referencing "
+                    "Neither LFS configuration nor workflows referencing "
                     + "LFS objects found.  Nothing to do."
                 )
                 return
             await self._checkout_migration_branch()
-            if self._lfs_files:
+            if self._lfsconfig is not None:
                 await self._update_lfsconfig()
+            if self._lfs_files:
                 await self._remove_and_readd()
             if self._wf_files:
                 await self._update_workflow_files()
             await self._report()
+
+    async def _locate_gitattributes(self) -> None:
+        ga = list(self._dir.glob("**/.gitattributes"))
+        if not ga:
+            return
+        if len(ga) > 1:
+            raise RuntimeError(f"Multiple .gitattributes files found: {ga}")
+        self._gitattributes = ga[0]
+
+    async def _locate_lfsconfig(self) -> None:
+        lfscfgpath = self._dir / ".lfsconfig"
+        if lfscfgpath.is_file():
+            self._lfsconfig = lfscfgpath
 
     async def _checkout_migration_branch(self) -> None:
         """We will perform changes on the migration branch.  If that is
@@ -107,35 +129,49 @@ class Migrator:
 
     async def _get_lfs_file_list(self) -> None:
         """Assemble the list of LFS-managed files by interpreting the
-        .gitattributes file in the repo root."""
+        .gitattributes file we found."""
         files: list[Path] = []
-        try:
-            with open(".gitattributes", "r") as f:
-                for line in f:
-                    fields = line.strip().split()
-                    if not await self._is_lfs_attribute(fields):
-                        continue
-                    files.extend(await self._find_lfs_files(fields[0]))
-        except FileNotFoundError:
-            # This may be a repo with only workflow Git LFS references.
-            pass
-        self._lfs_files = files
+        if self._gitattributes is None:
+            return  # self._lfs_files begins as None
+        with open(self._gitattributes, "r") as f:
+            for line in f:
+                fields = line.strip().split()
+                if not await self._is_lfs_attribute(fields):
+                    continue
+                files.extend(await self._find_lfs_files(fields[0]))
+        fileset = set(files)
+        self._logger.debug(f"Included files: {fileset}")
+        excluded_files = await self._get_excluded_file_list()
+        excset = set(excluded_files)
+        self._logger.debug(f"Excluded files: {excset}")
+        resolved_fileset = fileset - excset
+        lfsfiles = list(resolved_fileset)
+        self._logger.debug(f"LFS Files: {lfsfiles}")
+        if lfsfiles:
+            self._logger.debug(f"LFS file list for {self._url} -> {lfsfiles}")
+        self._lfs_files = lfsfiles
 
     async def _is_lfs_attribute(self, fields: list[str]) -> bool:
-        """
-        It's not clear that this is ever really formalized, but in
-        each case I've seen, "filter", "diff", and "merge" are set
-        to "lfs", and it's not a binary file ("-text").  I think that's
-        just  what `git lfs track` does, but whether it's documented, I
-        don't know.
+        """It's not clear that this is ever really formalized, but in
+        each case I've seen, "filter", "diff", and "merge" are set to
+        "lfs", and it's almost always not a binary file ("-text").  I
+        think that's just what `git lfs track` does, but whether it's
+        documented, I don't know.
+
+        Apparently not quite, since we have one repo which uses "-crlf"
+        (lsst-dm/phosim_psf_tests).
         """
         notext = fields[-1]
-        if notext != "-text":
-            self._logger.debug(f"{' '.join(fields)} does not end with '-text'")
+        if notext != "-text" and notext != "-crlf":
+            self._logger.debug(
+                f"{' '.join(fields)} does not end with '-text' or '-crlf'"
+            )
             return False
         mids = fields[1:-1]
         ok_flds = ("filter", "diff", "merge")
         for m in mids:
+            if m.find("=") == -1:
+                continue  # Definitely not right
             k, v = m.split("=")
             if k not in ok_flds:
                 self._logger.debug(f"{k} not in {ok_flds}")
@@ -146,30 +182,46 @@ class Migrator:
         return True
 
     async def _find_lfs_files(self, match: str) -> list[Path]:
-        """
-        The .gitattributes file is defined at:
+        """The .gitattributes file is defined at:
         https://git-scm.com/docs/gitattributes
 
-        Those can be in arbitrary directories and only concern things at
-        or below their own directory.
+        Those can be in arbitrary directories and only concern things
+        at or below their own directory.
 
-        We're going to initially use a simpler heuristic, which I
-        think is true for all Rubin repositories using LFS, and
-        quite possibly for LFS repos in general.
+        In Rubin Git LFS repositories, there is only one
+        .gitattributes file, but it may not be at the root of the
+        repo.
 
-        We assume that there is only one gitattributes file and it is in
-        <repo_root>.gitattributes
-
-        If it starts with "**/" we leave it alone, and if it starts
-        with "/" we strip the slash (and find the glob just in the current
-        directory), and if anything else, we prepend "**/" to it.
-
-        This might be wrong and may need tweaking.
+        Our strategy is pretty simple: do "**/" prepended to the
+        match, starting with the directory in which the .gitattributes
+        file was found.
         """
-        if not match.startswith("/") and not match.startswith("**/"):
-            match = "**/" + match
-        files = list(self._dir.glob(match))
+        if self._gitattributes is None:
+            return []
+        pdir = self._gitattributes.parent
+        match = "**/" + match
+        files = list(pdir.glob(match))
         self._logger.debug(f"{match} -> {[ str(x) for x in files]}")
+        with open("/tmp/fart.txt", "w") as f:
+            f.write(f"{pdir} / {files}")
+        return files
+
+    async def _get_excluded_file_list(self) -> list[Path]:
+        """Assemble the list of LFS-managed files by interpreting the
+        .gitattributes file we found."""
+        files: list[Path] = []
+        if self._gitattributes is None:
+            return files
+        pdir = self._gitattributes.parent
+        with open(self._gitattributes, "r") as f:
+            for line in f:
+                # There's probably something better than this, but....
+                # it'll do for the Rubin case.
+                if line.find("!filter !diff !merge") != -1:
+                    match = "**/" + line.split()[0]
+                    exf = list(pdir.glob(match))
+                    files.extend(exf)
+                    self._logger.debug(f"Excluded file {match} -> {exf}")
         return files
 
     async def _remove_and_readd(self) -> None:
@@ -221,14 +273,17 @@ class Migrator:
                 + f"{self._owner}/{self._name} repository."
             )
         ]
+        if self._lfsconfig is not None:
+            paragraphs += [
+                f"The LFS read-only pull URL is now {self._url}, "
+                + f"changed from {self._original_lfs_url}, and "
+                + "LFS lock verification has been disabled."
+            ]
         if self._lfs_files:
             paragraphs += [
                 (
-                    f"The LFS read-only pull URL is now {self._url}, "
-                    + f"changed from {self._original_lfs_url}, and "
-                    + f"{len(self._lfs_files)} files have been uploaded to "
-                    + "their new location.  Lock verification has also "
-                    + "been disabled."
+                    f"{len(self._lfs_files)} files have been uploaded to "
+                    + "their new location."
                 )
             ]
         if self._wf_files:
@@ -268,12 +323,14 @@ class Migrator:
 
     async def _update_lfsconfig(self) -> None:
         """Set read URL for LFS objects and disable lock verification."""
+        if self._lfsconfig is None:
+            self._logger.info("No .lfsconfig found; can't update.")
+            return
         if self._dry_run:
             self._logger.info(f"Would set .lfsconfig lfs.url to {self._url}")
             self._logger.info("Would set .lfsconfig lfs.locksverify to False")
             return
-        lfscfgblob = self._repo.head.commit.tree / ".lfsconfig"
-        lfscfgpath = lfscfgblob.abspath
+        lfscfgpath = self._lfsconfig.resolve()
         cfg = GitConfigParser(lfscfgpath, read_only=False)
         cfg.set("lfs", "url", self._url)
         cfg.set("lfs", "locksverify", "false")
@@ -354,7 +411,8 @@ def _get_migrator() -> Migrator:
         lfs_base_url=args.lfs_base_url,
         lfs_base_write_url=args.lfs_base_write_url,
         original_lfs_url=args.original_lfs_url,
-        migration_branch=args.original_migration_branch,
+        source_branch=args.source_branch,
+        migration_branch=args.migration_branch,
         dry_run=args.dry_run,
         quiet=args.quiet,
         debug=args.debug,

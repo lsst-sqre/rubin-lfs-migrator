@@ -26,6 +26,7 @@ class Looper:
         lfs_base_url: str,
         lfs_base_write_url: str,
         migration_branch: str,
+        source_branch: str | None,
         dry_run: bool,
         cleanup: bool,
         quiet: bool,
@@ -37,6 +38,7 @@ class Looper:
         self._lfs_base_url = lfs_base_url
         self._lfs_base_write_url = lfs_base_write_url
         self._migration_branch = migration_branch
+        self._source_branch = source_branch
         self._dry_run = dry_run
         self._cleanup = cleanup
         self._quiet = quiet
@@ -95,6 +97,7 @@ class Looper:
             lfs_base_url=self._lfs_base_url,
             lfs_base_write_url=self._lfs_base_write_url,
             migration_branch=self._migration_branch,
+            source_branch=self._source_branch,
             dry_run=self._dry_run,
             quiet=self._quiet,
             debug=self._debug,
@@ -126,7 +129,10 @@ class Looper:
             self._logger.info(f"Would clone '{repo}' to '{target}'")
             return
         self._logger.debug(f"Cloning '{repo}' to '{target}'")
-        Repo.clone_from(repo, target)
+        if self._source_branch is None:
+            Repo.clone_from(repo, target)
+        else:
+            Repo.clone_from(repo, target, branch=self._source_branch)
 
     async def _create_target_dir(self, owner: str, repo_name: str) -> Path:
         target = Path(self._dir / owner / repo_name)
@@ -152,6 +158,8 @@ class Looper:
                     + f"{result.stderr}"
                 )
             cmd = ["gh", "pr", "create", "-t", "Git LFS migration", "-b", ""]
+            if self._source_branch is not None:
+                cmd.extend(["-B", self._source_branch])
             result = run(cmd, logger=self._logger, timeout=60)
             if result.rc != 0:
                 raise RuntimeError(
@@ -212,6 +220,7 @@ def _create_looper() -> Looper:
         lfs_base_url=args.lfs_base_url,
         lfs_base_write_url=args.lfs_base_write_url,
         migration_branch=args.migration_branch,
+        source_branch=args.source_branch,
         dry_run=args.dry_run,
         cleanup=args.cleanup,
         quiet=args.quiet,
