@@ -13,23 +13,23 @@
 # https://github.com/lsst-dm/legacy-testdata_sst  # legacy
 # https://github.com/lsst-dm/legacy-validation_data_decam  # legacy
 # https://github.com/lsst-dm/legacy-validation_data_hsc  # legacy
-# https://github.com/lsst-dm/lsst_dm_ssp  # FIX .gitattributes not in root
+# https://github.com/lsst-dm/lsst_dm_ssp  # done
 # https://github.com/lsst-dm/milestones  # done
-# https://github.com/lsst-dm/phosim_psf_tests  # FIX -crlf not -text
-# https://github.com/lsst-dm/qserv-ingest  # FIX .gitattributes not in root
+# https://github.com/lsst-dm/phosim_psf_tests  # done
+# https://github.com/lsst-dm/qserv-ingest  # done
 # https://github.com/lsst-dm/rbClassifier_data  # done
 # https://github.com/lsst-dm/testdata_image_cutouts  # done
 # https://github.com/lsst-sitcom/sitcomtn-052  # done
-# https://github.com/lsst-ts/ts_tma  # nothing to do?
+# https://github.com/lsst-ts/ts_tma  # done
 # https://github.com/lsst/LDM-294  # done
 # https://github.com/lsst/LDM-503  # done
 # https://github.com/lsst/LDM-564  # done
 # https://github.com/lsst/afwdata  # done
 # https://github.com/lsst/ap_verify_ci_cosmos_pdr2  # done
 # https://github.com/lsst/ap_verify_ci_dc2  # done
-# https://github.com/lsst/ap_verify_ci_hits2015  # FIXME failed .gitattributes?
+# https://github.com/lsst/ap_verify_ci_hits2015  # done
 # https://github.com/lsst/ap_verify_testdata  # done
-# https://github.com/lsst/ci_hsc  # nothing to do
+# https://github.com/lsst/ci_hsc  # done
 # https://github.com/lsst/rc2_subset  # done
 # https://github.com/lsst/testdata_cfht  # done
 # https://github.com/lsst/testdata_ci_hsc  # done
