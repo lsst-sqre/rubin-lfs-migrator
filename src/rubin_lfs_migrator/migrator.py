@@ -342,6 +342,7 @@ class Migrator:
         client.commit(
             "-m", f"Set lfs.url to {self._url} and disable lock verification"
         )
+        client.push("--set-upstream", "origin", self._migration_branch)
 
     async def _get_wf_files(self) -> None:
         w_dir = Path(self._dir / ".github" / "workflows")
