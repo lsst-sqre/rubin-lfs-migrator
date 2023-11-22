@@ -382,7 +382,8 @@ class Migrator:
         client.add(self._wf_files)
         client.commit("-m", "Updated workflow files")
         self._logger.debug("Pushing workflow file changes")
-        client.push("--set-upstream", "origin", self._migration_branch)
+        if not self._dry_run:
+            client.push("--set-upstream", "origin", self._migration_branch)
 
 
 def _get_migrator() -> Migrator:

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 from git import GitConfigParser, Repo
-from git.exc import InvalidGitRepositoryError
+from git.exc import GitCommandError, InvalidGitRepositoryError
 
 from rubin_lfs_migrator import Migrator
 
@@ -90,7 +90,9 @@ async def test_execution(
         assert repo.active_branch == repo.create_head("lfs-migration")
 
         # Update LFS config
-        await migrator._update_lfsconfig()
+        with pytest.raises(GitCommandError):
+            # We can't actually push, so we'll get an error.
+            await migrator._update_lfsconfig()
 
         # Check that we have made a new commit
         commits = list(repo.iter_commits("lfs-migration"))
