@@ -23,6 +23,7 @@ dynamic = ["version"]
 
 [project.scripts]
 migrate_lfs = "rubin_lfs_migrator.migrator:main"
+lfs_looper = "rubin_lfs_migrator.looper:main"
 
 [project.urls]
 Source = "https://github.com/lsst-sqre/rubin-lfs-migrator"
