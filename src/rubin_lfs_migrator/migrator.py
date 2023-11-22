@@ -161,6 +161,8 @@ class Migrator:
         Apparently not quite, since we have one repo which uses "-crlf"
         (lsst-dm/phosim_psf_tests).
         """
+        if not fields:
+            return False
         notext = fields[-1]
         if notext != "-text" and notext != "-crlf":
             self._logger.debug(
