@@ -210,6 +210,7 @@ def _create_looper() -> Looper:
         "-c",
         "--cleanup",
         default=str_bool(os.environ.get("LFSMIGRATOR_CLEANUP", "")),
+        action="store_true",
         help="clean up repo directories [env: LFSMIGRATOR_CLEANUP, False]",
     )
     args = parser.parse_args()
