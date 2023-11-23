@@ -23,6 +23,7 @@ class ObjectCopier(Migrator):
         self._selected_branches: list[str] = []
         self._tags: list[str] = []
         self._checkout_lfs_files: dict[str, dict[str, str]] = {}
+        self._have_oid: dict[str, bool] = {}
 
     async def execute(self) -> None:
         """execute() is the only public method.  It performs the git
@@ -76,7 +77,32 @@ class ObjectCopier(Migrator):
             if co not in self._checkout_lfs_files:
                 self._checkout_lfs_files[co] = {}
             self._checkout_lfs_files[co][fn] = ""
-        await self._copy_lfs_files_for_co(co, lfs_files)
+        await self._update_oids(co, lfs_files)
+        needed_files = await self._check_for_needed_files(co, lfs_files)
+        if not needed_files:
+            self._logger.debug(
+                f"All LFS objects in checkout '{co}' are already present"
+            )
+            return
+        await self._copy_lfs_files_for_co(co, needed_files)
+        self._logger.debug(
+            f"{len(needed_files)} LFS objects for " f"checkout '{co}' uploaded"
+        )
+
+    async def _check_for_needed_files(
+        self, checkout: str, lfs_files: list[Path]
+    ) -> list[Path]:
+        needed: list[Path] = []
+        for path in lfs_files:
+            fn = str(path)
+            oid = self._checkout_lfs_files[checkout][fn]
+            if not oid:
+                raise RuntimeError(
+                    f"File '{fn}' in checkout '{checkout}' has no oid"
+                )
+            if oid not in self._have_oid:
+                needed.append(path)
+        return needed
 
     async def _select_branches(self) -> None:
         origin = "origin/"
@@ -220,6 +246,10 @@ class ObjectCopier(Migrator):
         self._logger.debug("Pushing re-add change")
         resp = client.push("--set-upstream", "origin", self._temporary_branch)
         self._logger.debug(f"LFS files uploaded: {resp}")
+        self._logger.debug("Updating map of uploaded OIDs")
+        for fn in str_files:
+            oid = self._checkout_lfs_files[co][fn]
+            self._have_oid[oid] = True
         self._logger.debug(f"Reset Git LFS URL to {self._original_lfs_url}")
         cfg = self._repo.config_writer()
         cfg.set("lfs", "url", self._original_lfs_url)
@@ -227,8 +257,6 @@ class ObjectCopier(Migrator):
         if orig_dir != self._dir:
             self._logger.debug(f"Changing directory to {str(self._dir)}")
             os.chdir(self._dir)
-        self._logger.debug("Updating OIDs for report")
-        await self._update_oids(co, lfs_files)
         self._logger.debug("Deleting remote temporary branch")
         remote = self._repo.remote(name="origin")
         remote.push(refspec=(f":{self._temporary_branch}"))
