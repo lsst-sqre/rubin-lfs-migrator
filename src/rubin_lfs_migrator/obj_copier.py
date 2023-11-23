@@ -23,7 +23,7 @@ class ObjectCopier(Migrator):
         self._selected_branches: list[str] = []
         self._tags: list[str] = []
         self._checkout_lfs_files: dict[str, dict[str, str]] = {}
-        self._have_oid: dict[str, bool] = {}
+        self._have_oid: dict[str, dict[str, str]] = {}
 
     async def execute(self) -> None:
         """execute() is the only public method.  It performs the git
@@ -249,7 +249,7 @@ class ObjectCopier(Migrator):
         self._logger.debug("Updating map of uploaded OIDs")
         for fn in str_files:
             oid = self._checkout_lfs_files[co][fn]
-            self._have_oid[oid] = True
+            self._have_oid[oid] = {"checkout": co, "file": fn}
         self._logger.debug(f"Reset Git LFS URL to {self._original_lfs_url}")
         cfg = self._repo.config_writer()
         cfg.set("lfs", "url", self._original_lfs_url)
@@ -279,7 +279,7 @@ class ObjectCopier(Migrator):
         if self._quiet:
             return
         text = "Migrated LFS objects:\n\n"
-        text += json.dumps(self._checkout_lfs_files, sort_keys=True, indent=2)
+        text += json.dumps(self._have_oid, sort_keys=True, indent=2)
         print(text)
 
 
@@ -310,7 +310,7 @@ def _get_object_copier() -> ObjectCopier:
         help=(
             "branch pattern to match for copy [env: "
             "LFSMIGRATOR_BRANCH_PATTERN, '"
-            r"V\d\d.*"
+            r"v\d\d.*"
             "']"
         ),
     )
