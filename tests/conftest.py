@@ -23,6 +23,7 @@ def migrator(directory: Path) -> Migrator:
         directory=str(directory),
         migration_branch="lfs-migration",
         source_branch=None,
+        report_file="-",
         original_lfs_url="https://git-lfs.lsst.codes",
         lfs_base_url="https://git-lfs-dev.lsst.cloud",
         lfs_base_write_url="https://git-lfs-dev-rw.lsst.cloud",

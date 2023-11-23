@@ -17,11 +17,7 @@ class LoopCopier(Looper):
         self._temporary_branch = kwargs.pop("temporary_branch")
         super().__init__(*args, **kwargs)
 
-    async def _migrate_repo(self, repo: ParseResult) -> None:
-        """Failure to anticipate extension; want to use superclass loop()."""
-        await self._copy_repo(repo)
-
-    async def _copy_repo(self, repo: ParseResult) -> None:
+    async def _execute(self, repo: ParseResult) -> None:
         target, owner, repo_name = await self._download_repo(repo)
         copier = ObjectCopier(
             directory=str(target),
@@ -29,6 +25,7 @@ class LoopCopier(Looper):
             repository=repo_name,
             branch_pattern=self._branch_pattern,
             temporary_branch=self._temporary_branch,
+            report_file=self._report_file,
             original_lfs_url=self._original_lfs_url,
             lfs_base_url=self._lfs_base_url,
             lfs_base_write_url=self._lfs_base_write_url,
@@ -49,11 +46,11 @@ class LoopCopier(Looper):
 
 
 def main() -> None:
-    looper = _create_looper()
-    asyncio.run(looper.loop())
+    copier = _create_copier()
+    asyncio.run(copier.loop())
 
 
-def _create_looper() -> Looper:
+def _create_copier() -> LoopCopier:
     parser = parse(description="Migrate multiple repositories")
     # Now the loop-specific ones
     parser.add_argument(
@@ -61,7 +58,7 @@ def _create_looper() -> Looper:
         "--file",
         "--input-file",
         default=os.environ.get("LFSMIGRATOR_INPUT_FILE", "-"),
-        help="input file of repositories [env: LFSMIGRATOR_INPUT_FILE, '']",
+        help="input file of repositories [env: LFSMIGRATOR_INPUT_FILE, '-']",
     )
     parser.add_argument(
         "-t",
@@ -76,6 +73,9 @@ def _create_looper() -> Looper:
         action="store_true",
         help="clean up repo directories [env: LFSMIGRATOR_CLEANUP, False]",
     )
+    #
+    # And the copier-specific ones.
+    #
     parser.add_argument(
         "--branch-pattern",
         default=os.environ.get("LFSMIGRATOR_BRANCH_PATTERN", r"V\d\d.*"),
@@ -97,14 +97,17 @@ def _create_looper() -> Looper:
         ),
     )
     args = parser.parse_args()
-    return Looper(
+    return LoopCopier(
         input_file=args.file,
         top_dir=args.top_dir,
         original_lfs_url=args.original_lfs_url,
         lfs_base_url=args.lfs_base_url,
         lfs_base_write_url=args.lfs_base_write_url,
+        branch_pattern=args.branch_pattern,
         migration_branch=args.migration_branch,
         source_branch=args.source_branch,
+        temporary_branch=args.temporary_branch,
+        report_file=args.report_file,
         dry_run=args.dry_run,
         cleanup=args.cleanup,
         quiet=args.quiet,

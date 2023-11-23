@@ -19,6 +19,7 @@ def test_not_git() -> None:
                 directory=d,
                 migration_branch="lfs-migration",
                 source_branch=None,
+                report_file="-",
                 original_lfs_url="https://git-lfs.lsst.codes",
                 lfs_base_url="https://git-lfs-dev.lsst.cloud",
                 lfs_base_write_url="https://git-lfs-dev-rw.lsst.cloud",
@@ -37,6 +38,7 @@ def test_object(directory: Path) -> None:
         directory=str(directory),
         migration_branch="lfs-migration",
         source_branch=None,
+        report_file="-",
         original_lfs_url="https://git-lfs.lsst.codes",
         lfs_base_url="https://git-lfs-dev.lsst.cloud",
         lfs_base_write_url="https://git-lfs-dev-rw.lsst.cloud",
@@ -113,6 +115,6 @@ async def test_execution(
         await migrator._report()
 
         # Read the output
-        expected = "LFS migration has been performed on the `lfs-migration`"
         captured = capsys.readouterr()
-        assert captured.out.startswith(expected)
+        header_line = captured.out.split("\n")[0].strip()
+        assert header_line.endswith("Migrator")

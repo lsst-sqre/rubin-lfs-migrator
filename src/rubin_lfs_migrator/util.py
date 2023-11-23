@@ -1,4 +1,5 @@
 """Utility functions"""
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import ParseResult, urlparse
 
@@ -19,3 +20,7 @@ def path(str_path: str) -> Path:
 def url(str_url: str) -> ParseResult:
     # Again, gets us syntactic validation for free
     return urlparse(str_url)
+
+
+def str_now() -> str:
+    return datetime.isoformat(datetime.now(timezone.utc))
