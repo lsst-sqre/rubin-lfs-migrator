@@ -72,6 +72,8 @@ class OidMapper(ObjectCopier):
                 del self._checkout_lfs_files[checkout][str(fn)]
                 continue
             with open(fn, "r") as f:
+                self._logger.debug(f"Reading {str(fn)}")
+
                 for ln in f:
                     line = ln.strip()
                     fields = line.split()

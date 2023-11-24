@@ -273,8 +273,12 @@ class ObjectCopier(Migrator):
         self._logger.debug("Deleting remote temporary branch")
         remote = self._repo.remote(name="origin")
         remote.push(refspec=(f":{self._temporary_branch}"))
-        co_br = self._repo.create_head(co)
-        co_br.checkout()
+        if co != "main" and co != "master":
+            co_br = self._repo.create_head(co)
+            co_br.checkout()
+        else:
+            # the reference to HEAD exists from the clone
+            self._repo.git.checkout(co)
         self._logger.debug("Deleting local temporary branch")
         client.branch("-d", self._temporary_branch)
 
