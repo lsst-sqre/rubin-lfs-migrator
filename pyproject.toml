@@ -26,6 +26,8 @@ migrate_lfs = "rubin_lfs_migrator.migrator:main"
 lfs_looper = "rubin_lfs_migrator.looper:main"
 copy_lfs_objs = "rubin_lfs_migrator.obj_copier:main"
 lfs_copy_looper = "rubin_lfs_migrator.loop_copier:main"
+oid_mapper = "rubin_lfs_migrator.oid_mapper:main"
+lfs_oid_looper = "rubin_lfs_migrator.loop_oid_mapper:main"
 
 [project.urls]
 Source = "https://github.com/lsst-sqre/rubin-lfs-migrator"

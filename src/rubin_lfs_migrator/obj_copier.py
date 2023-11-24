@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+from configparser import NoSectionError
 from pathlib import Path
 from typing import Any
 
@@ -50,6 +51,7 @@ class ObjectCopier(Migrator):
         client.checkout(co)
         self._logger.debug(f"Checking out/fetching '{co}'")
         client.fetch()
+        client.reset("--hard")
         lfs_config = await self._locate_co_lfsconfig()
         if lfs_config is None:
             self._logger.warning(
@@ -58,8 +60,13 @@ class ObjectCopier(Migrator):
             return
         self._logger.debug(f"Reset Git LFS URL to {self._original_lfs_url}")
         cfg = self._repo.config_writer()
-        cfg.set("lfs", "url", self._original_lfs_url)
-        cfg.release()
+        try:
+            cfg.set("lfs", "url", self._original_lfs_url)
+        except NoSectionError:
+            self._logger.debug("No LFS section in config -- nothing to do")
+            return
+        finally:
+            cfg.release()
         git_attributes = await self._locate_co_gitattributes()
         if git_attributes is None:
             self._logger.warning(
@@ -113,7 +120,9 @@ class ObjectCopier(Migrator):
         self._selected_branches = [
             x.name[l_o:]
             for x in self._repo.remote().refs
-            if re.match(mpat, x.name) is not None
+            if (x.name == "origin/main")
+            or (x.name == "origin/master")
+            or re.match(mpat, x.name) is not None
         ]
         self._logger.debug(f"Selected branches: {self._selected_branches}")
 

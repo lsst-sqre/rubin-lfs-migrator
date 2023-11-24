@@ -51,7 +51,8 @@ class Looper:
             "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         )
         ch.setFormatter(formatter)
-        self._logger.addHandler(ch)
+        if ch not in self._logger.handlers:
+            self._logger.addHandler(ch)
         self._logger.setLevel("INFO")
         if self._quiet:
             self._logger.setLevel("CRITICAL")
