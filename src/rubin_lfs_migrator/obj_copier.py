@@ -115,11 +115,13 @@ class ObjectCopier(Migrator):
             for x in self._repo.remote().refs
             if re.match(mpat, x.name) is not None
         ]
+        self._logger.debug(f"Selected branches: {self._selected_branches}")
 
     async def _select_tags(self) -> None:
         client = self._repo.git
         client.fetch("--tags")
-        self._tags = client.tag("-l").split("\n")
+        self._tags = [x for x in client.tag("-l").split("\n") if x]
+        self._logger.debug(f"Tags: {self._tags}")
 
     async def _locate_co_gitattributes(self) -> Path | None:
         ga = list(self._dir.glob("**/.gitattributes"))
