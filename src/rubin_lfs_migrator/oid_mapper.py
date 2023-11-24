@@ -1,5 +1,4 @@
 import asyncio
-import contextlib
 import json
 import os
 from pathlib import Path
@@ -21,17 +20,6 @@ class OidMapper(ObjectCopier):
         self._full_map = kwargs.pop("full_map")
         super().__init__(*args, **kwargs)
         self._oids: dict[str, bool] = {}
-
-    async def execute(self) -> None:
-        """execute() is the only public method.  It performs the git
-        operations necessary to migrate the Git LFS content (or, if
-        dry_run is enabled, just logs the operations).
-        """
-        with contextlib.chdir(self._dir):
-            await self._select_branches()
-            await self._select_tags()
-            await self._loop()
-            await self._write_output()
 
     async def _loop_over_item(self, co: str) -> None:
         client = self._repo.git
@@ -72,24 +60,28 @@ class OidMapper(ObjectCopier):
                 del self._checkout_lfs_files[checkout][str(fn)]
                 continue
             with open(fn, "r") as f:
-                self._logger.debug(f"Reading {str(fn)}")
-
-                for ln in f:
-                    line = ln.strip()
-                    fields = line.split()
-                    if not fields:
-                        continue
-                    if fields[0] != "oid":
-                        continue
-                    oid = fields[1]
-                    self._checkout_lfs_files[checkout][str(fn)] = oid
-                    self._oids[oid] = True
-                    self._logger.debug(
-                        f"oid '{oid}' @ [{checkout}] -> {str(fn)}"
+                try:
+                    for ln in f:
+                        line = ln.strip()
+                        fields = line.split()
+                        if not fields:
+                            continue
+                        if fields[0] != "oid":
+                            continue
+                        oid = fields[1]
+                        self._checkout_lfs_files[checkout][str(fn)] = oid
+                        self._oids[oid] = True
+                        self._logger.debug(
+                            f"oid '{oid}' @ [{checkout}] -> {str(fn)}"
+                        )
+                        break
+                except UnicodeDecodeError:
+                    self._logger.warning(
+                        f"Failed to decode {str(fn)} as text; skipping "
+                        "(probably stored directly, not in LFS)"
                     )
-                    break
 
-    async def _write_output(self) -> None:
+    async def _report(self) -> None:
         filename = Path(f"oids--{self._owner}--{self._name}.json")
         out = {
             f"{self._owner}/{self._name}": [

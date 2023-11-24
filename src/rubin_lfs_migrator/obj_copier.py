@@ -8,6 +8,8 @@ from configparser import NoSectionError
 from pathlib import Path
 from typing import Any
 
+from git.exc import GitCommandError
+
 from .migrator import Migrator
 from .parser import parse
 
@@ -48,7 +50,33 @@ class ObjectCopier(Migrator):
 
     async def _loop_over_item(self, co: str) -> None:
         client = self._repo.git
-        client.checkout(co)
+        try:
+            client.checkout(co)
+        except GitCommandError as exc:
+            #
+            # When we're looping, if we find a file that SHOULD be
+            # git LFS managed, but isn't, then it will differ between
+            # branches.  So toss the change and keep going.
+            #
+            stderr = exc.stderr
+            if type(stderr) is not str:
+                raise
+            lines = stderr.split("\n")
+            if (
+                lines[0].strip().find("local changes to the following files")
+                == -1
+            ):
+                raise
+            if len(lines) < 2:
+                raise
+            for ln in lines:
+                filename = ln.strip()
+                badfile = Path(self._dir / filename)
+                self._logger.warning(
+                    f"Removing non-pointer file {str(badfile)}"
+                )
+                badfile.unlink()
+                client.checkout(co)
         self._logger.debug(f"Checking out/fetching '{co}'")
         client.fetch()
         client.reset("--hard")
@@ -103,6 +131,8 @@ class ObjectCopier(Migrator):
     ) -> list[Path]:
         needed: list[Path] = []
         for path in lfs_files:
+            if path.is_symlink():
+                continue
             fn = str(path)
             oid = self._checkout_lfs_files[checkout][fn]
             if not oid:
@@ -280,7 +310,7 @@ class ObjectCopier(Migrator):
             # the reference to HEAD exists from the clone
             self._repo.git.checkout(co)
         self._logger.debug("Deleting local temporary branch")
-        client.branch("-d", self._temporary_branch)
+        client.branch("-D", self._temporary_branch)
 
     async def _update_oids(self, checkout: str, files: list[Path]) -> None:
         for fn in files:
