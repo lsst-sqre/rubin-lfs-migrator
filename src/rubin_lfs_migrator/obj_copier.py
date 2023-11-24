@@ -280,6 +280,15 @@ class ObjectCopier(Migrator):
 
     async def _update_oids(self, checkout: str, files: list[Path]) -> None:
         for fn in files:
+            # A symlink either points elsewhere into someplace inside the
+            # repo, in which case we'll check it there, or it points
+            # somewhere else entirely, in which case we can't check it.
+            if fn.is_symlink():
+                self._logger.info(
+                    f"Skipping symlink {str(fn)} -> {fn.resolve()}"
+                )
+                del self._checkout_lfs_files[checkout][str(fn)]
+                continue
             with open(fn, "rb") as f:
                 digest = hashlib.file_digest(f, "sha256")
             s_digest = f"sha256:{digest.hexdigest()}"

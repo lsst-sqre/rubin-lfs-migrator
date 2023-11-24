@@ -62,6 +62,15 @@ class OidMapper(ObjectCopier):
 
     async def _update_oids(self, checkout: str, files: list[Path]) -> None:
         for fn in files:
+            if fn.is_symlink():
+                # A symlink either points elsewhere into someplace inside the
+                # repo, in which case we'll check it there, or it points
+                # somewhere else entirely, in which case we can't check it.
+                self._logger.warning(
+                    f"Skipping symlink {str(fn)} -> {fn.resolve()}"
+                )
+                del self._checkout_lfs_files[checkout][str(fn)]
+                continue
             with open(fn, "r") as f:
                 for ln in f:
                     line = ln.strip()
