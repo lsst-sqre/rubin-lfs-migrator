@@ -38,7 +38,9 @@ class ObjectCopier(Migrator):
 
     async def _loop(self) -> None:
         checkouts = self._selected_branches.copy()
-        checkouts.extend(self._tags)
+        if self._tags:
+            checkouts.extend(self._tags)
+        self._logger.debug(f"Checkouts to attempt: {checkouts}")
         for co in checkouts:
             await self._loop_over_item(co)
         await self._report()
