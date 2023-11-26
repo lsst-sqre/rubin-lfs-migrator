@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 import asyncio
 import contextlib
-import fileinput
 import logging
 import os
+import sys
 import textwrap
 from pathlib import Path
 from shutil import rmtree
@@ -14,7 +14,7 @@ from git import Repo
 from .external import check_exe, run
 from .migrator import Migrator
 from .parser import parse
-from .util import str_bool, url
+from .util import str_bool, str_now, url
 
 
 class Looper:
@@ -27,6 +27,7 @@ class Looper:
         lfs_base_write_url: str,
         migration_branch: str,
         source_branch: str | None,
+        report_file: str,
         dry_run: bool,
         cleanup: bool,
         quiet: bool,
@@ -39,6 +40,7 @@ class Looper:
         self._lfs_base_write_url = lfs_base_write_url
         self._migration_branch = migration_branch
         self._source_branch = source_branch
+        self._report_file = report_file
         self._dry_run = dry_run
         self._cleanup = cleanup
         self._quiet = quiet
@@ -49,7 +51,8 @@ class Looper:
             "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         )
         ch.setFormatter(formatter)
-        self._logger.addHandler(ch)
+        if ch not in self._logger.handlers:
+            self._logger.addHandler(ch)
         self._logger.setLevel("INFO")
         if self._quiet:
             self._logger.setLevel("CRITICAL")
@@ -58,36 +61,46 @@ class Looper:
             self._logger.debug("Debugging enabled for Looper")
         self._has_gh = check_exe("gh")
         self._paragraphs: list[str] = []
+        self._report_text: str = ""
 
     async def loop(self) -> None:
-        inputs: tuple[str, ...] | None = None
-        if self._file != "-":
-            inputs = tuple([self._file])
-        with fileinput.input(inputs) as f:
-            for ln in f:
-                # Look for comments and ignore anything after '#'
-                m_p = ln.find("#")
-                if m_p != -1:
-                    ln = ln[:m_p]
-                # Strip whitespace
-                ln = ln.strip()
-                # Strip '.git' from end if it's there
-                if ln.endswith(".git"):
-                    ln = ln[:-4]
-                # Anything left?
-                if not ln:
-                    continue
-                repo_url = url(ln)
-                if repo_url.scheme != "https":
-                    self._logger.warning(
-                        "Repository URL scheme must be 'https', not "
-                        + f"{repo_url.scheme}; skipping {repo_url}"
-                    )
-                    continue
-                await self._migrate_repo(repo_url)
+        repo_urls = await self._read_repos()
+        for repo_url in repo_urls:
+            await self._execute(repo_url)
+        await self._prepare_report()
         await self._report()
 
-    async def _migrate_repo(self, repo: ParseResult) -> None:
+    async def _read_repos(self) -> list[ParseResult]:
+        repo_urls: list[ParseResult] = []
+        if self._file == "-":
+            fh = sys.stdin
+        else:
+            fh = open(self._file, "r")
+        for ln in fh:
+            # Look for comments and ignore anything after '#'
+            m_p = ln.find("#")
+            if m_p != -1:
+                ln = ln[:m_p]
+            # Strip whitespace
+            ln = ln.strip()
+            # Strip '.git' from end if it's there
+            if ln.endswith(".git"):
+                ln = ln[:-4]
+            # Anything left?
+            if not ln:
+                continue
+            repo_url = url(ln)
+            if repo_url.scheme != "https":
+                self._logger.warning(
+                    "Repository URL scheme must be 'https', not "
+                    + f"{repo_url.scheme}; skipping {repo_url}"
+                )
+                continue
+            repo_urls.append(repo_url)
+        fh.close()
+        return repo_urls
+
+    async def _execute(self, repo: ParseResult) -> None:
         target, owner, repo_name = await self._download_repo(repo)
         migrator = Migrator(
             directory=str(target),
@@ -98,6 +111,7 @@ class Looper:
             lfs_base_write_url=self._lfs_base_write_url,
             migration_branch=self._migration_branch,
             source_branch=self._source_branch,
+            report_file=self._report_file,
             dry_run=self._dry_run,
             quiet=self._quiet,
             debug=self._debug,
@@ -179,10 +193,25 @@ class Looper:
             self._logger.debug(f"Removing '{target}'")
             rmtree(target)
 
-    async def _report(self) -> None:
+    async def _prepare_report(self) -> None:
         alignedps = [textwrap.dedent(x) for x in self._paragraphs]
-        text = "\n\n".join([textwrap.fill(x).lstrip() for x in alignedps])
-        print(text)
+        self._report_text = "\n\n".join(
+            [textwrap.fill(x).lstrip() for x in alignedps]
+        )
+
+    async def _report(self) -> None:
+        if self._quiet:
+            return
+        text = (
+            f"{str_now()} : {self.__class__.__name__}\n------\n"
+            + self._report_text
+        )
+        if self._report_file != "-":
+            fh = open(self._report_file, "a")
+            print(text, file=fh)
+            fh.close()
+        else:
+            print(text)
 
 
 def main() -> None:
@@ -222,6 +251,7 @@ def _create_looper() -> Looper:
         lfs_base_write_url=args.lfs_base_write_url,
         migration_branch=args.migration_branch,
         source_branch=args.source_branch,
+        report_file=args.report_file,
         dry_run=args.dry_run,
         cleanup=args.cleanup,
         quiet=args.quiet,

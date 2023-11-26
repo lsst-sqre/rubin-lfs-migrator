@@ -4,7 +4,7 @@ https://github.com/lsst-dm/alert_stream
 https://github.com/lsst-dm/ap_verify_dataset_template
 https://github.com/lsst-dm/dmtn-158
 https://github.com/lsst-dm/dmtn-232
-https://github.com/lsst-dm/legacy-ap_pip_testdata
+https://github.com/lsst-dm/legacy-ap_pipe_testdata
 https://github.com/lsst-dm/legacy-ap_verify_hits2015
 https://github.com/lsst-dm/legacy-ci_ctio0m9
 https://github.com/lsst-dm/legacy-ci_hsc_gen2

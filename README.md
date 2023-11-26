@@ -3,6 +3,15 @@ Rubin Git LFS migrator
 
 This is a tool to migrate Git LFS contents from one location to another.
 
+**DON'T USE IT**
+
+Seriously, use https://github.com/lsst-sqre/rubin-checklfs instead.  It
+turns out that with repositories with many LFS objects and many Git
+branches, trying to do the migration purely through `git` actions is
+infeasibly slow.
+
+This should be considered purely archival.
+
 To use it, `pip install rubin-lfs-migrator` and then run `migrate_lfs`.
 You will need to have cloned the repository you want to migrate
 (complete with LFS objects) into some directory, which will become the
@@ -52,8 +61,8 @@ options:
 ```
 
 A more useful tool may be `lfs_looper`, which takes as its input a list
-of repositories on GitHub (in the form `owner/repo`), and migrates each
-of those in turn:
+of repositories on GitHub (in the form `https://github.comowner/repo`),
+and migrates each of those in turn:
 
 ```
 usage: lfs_looper [-h] [-m MIGRATION_BRANCH] [-s SOURCE_BRANCH]

@@ -64,6 +64,11 @@ def parse(description: str) -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--report-file",
+        default=os.environ.get("LFSMIGRATOR_REPORT_FILE", "-"),
+        help=("Report output file [env: LFSMIGRATOR_REPORT_FILE, '-']"),
+    )
+    parser.add_argument(
         "-x",
         "--dry-run",
         action="store_true",

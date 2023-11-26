@@ -8,6 +8,7 @@ from pathlib import Path
 from git import GitConfigParser, Repo
 
 from .parser import parse
+from .util import str_now
 
 
 class Migrator:
@@ -29,6 +30,7 @@ class Migrator:
         lfs_base_write_url: str,
         migration_branch: str,
         source_branch: str | None,
+        report_file: str,
         dry_run: bool,
         quiet: bool,
         debug: bool,
@@ -45,6 +47,7 @@ class Migrator:
         self._original_lfs_url = original_lfs_url
         self._migration_branch = migration_branch
         self._source_branch = source_branch
+        self._report_file = report_file
         self._dry_run = dry_run
         self._quiet = quiet
         self._debug = debug
@@ -54,7 +57,8 @@ class Migrator:
             "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         )
         ch.setFormatter(formatter)
-        self._logger.addHandler(ch)
+        if ch not in self._logger.handlers:
+            self._logger.addHandler(ch)
         self._logger.setLevel("INFO")
         if self._quiet:
             self._logger.setLevel("CRITICAL")
@@ -70,6 +74,8 @@ class Migrator:
 
         self._gitattributes: Path | None = None
         self._lfsconfig: Path | None = None
+
+        self._report_text: str = ""
 
     async def execute(self) -> None:
         """execute() is the only public method.  It performs the git
@@ -95,6 +101,7 @@ class Migrator:
                 await self._remove_and_readd()
             if self._wf_files:
                 await self._update_workflow_files()
+            await self._prepare_report()
             await self._report()
 
     async def _locate_gitattributes(self) -> None:
@@ -204,8 +211,6 @@ class Migrator:
         match = "**/" + match
         files = list(pdir.glob(match))
         self._logger.debug(f"{match} -> {[ str(x) for x in files]}")
-        with open("/tmp/fart.txt", "w") as f:
-            f.write(f"{pdir} / {files}")
         return files
 
     async def _get_excluded_file_list(self) -> list[Path]:
@@ -265,9 +270,7 @@ class Migrator:
             self._logger.debug(f"Changing directory to {str(self._dir)}")
             os.chdir(self._dir)
 
-    async def _report(self) -> None:
-        if self._quiet:
-            return
+    async def _prepare_report(self) -> None:
         paragraphs = [
             (
                 "LFS migration has been performed on the "
@@ -320,8 +323,23 @@ class Migrator:
             paragraphs.insert(0, "***DRY RUN: the following DID NOT HAPPEN***")
             paragraphs.append("***DRY RUN: the preceding DID NOT HAPPEN***")
         alignedps = [textwrap.dedent(x) for x in paragraphs]
-        text = "\n\n".join([textwrap.fill(x).lstrip() for x in alignedps])
-        print(text)
+        self._report_text = "\n\n".join(
+            [textwrap.fill(x).lstrip() for x in alignedps]
+        )
+
+    async def _report(self) -> None:
+        if self._quiet:
+            return
+        text = (
+            f"{str_now()} : {self.__class__.__name__}\n------\n"
+            + self._report_text
+        )
+        if self._report_file != "-":
+            fh = open(self._report_file, "a")
+            print(text, file=fh)
+            fh.close()
+        else:
+            print(text)
 
     async def _update_lfsconfig(self) -> None:
         """Set read URL for LFS objects and disable lock verification."""
@@ -417,6 +435,7 @@ def _get_migrator() -> Migrator:
         original_lfs_url=args.original_lfs_url,
         source_branch=args.source_branch,
         migration_branch=args.migration_branch,
+        report_file=args.report_file,
         dry_run=args.dry_run,
         quiet=args.quiet,
         debug=args.debug,
